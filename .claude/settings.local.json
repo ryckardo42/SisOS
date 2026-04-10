@@ -6,7 +6,10 @@
       "Bash(npx create-next-app@latest sisos-temp --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --turbopack)",
       "Bash(cp -r /Users/ricardodeoliveira/Documents/Claude/sisos-temp/. /Users/ricardodeoliveira/Documents/Claude/SisOS/)",
       "Bash(rm -rf /Users/ricardodeoliveira/Documents/Claude/sisos-temp)",
-      "Bash(npx shadcn@latest init -d)"
+      "Bash(npx shadcn@latest init -d)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(git add:*)"
     ]
   }
 }
