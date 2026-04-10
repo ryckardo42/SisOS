@@ -12,25 +12,24 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Cliente admin do Supabase (ignora RLS)
-  const supabaseAdmin = createClient(
+  // Usa anon key — a função SQL tem SECURITY DEFINER para acessar auth.users
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
-  // Data de ontem (dia do vencimento que queremos checar)
+  // Data de ontem
   const ontem = new Date();
   ontem.setDate(ontem.getDate() - 1);
   const ontemStr = ontem.toISOString().split("T")[0]; // YYYY-MM-DD
 
-  // Busca DETs cujo data_entrega foi ontem
-  const { data: dets, error } = await supabaseAdmin
-    .from("dets")
-    .select("id, codigo, data_entrega, auditorias(fiscalizada, user_id)")
-    .eq("data_entrega", ontemStr);
+  // Chama a função SQL que retorna DETs vencidos com e-mail do usuário
+  const { data: dets, error } = await supabase.rpc("get_dets_vencidos", {
+    target_date: ontemStr,
+  });
 
   if (error) {
     console.error("Erro ao buscar DETs:", error);
@@ -38,60 +37,57 @@ export async function GET(request: Request) {
   }
 
   if (!dets || dets.length === 0) {
-    return NextResponse.json({ message: "Nenhum DET vencido ontem.", processed: 0 });
+    return NextResponse.json({ message: "Nenhum DET venceu ontem.", processed: 0 });
   }
 
   const results: { det: string; email?: string; status: string; erro?: string }[] = [];
 
-  for (const det of dets) {
+  for (const det of dets as {
+    det_id: string;
+    codigo: string;
+    data_entrega: string;
+    fiscalizada: string;
+    user_email: string;
+  }[]) {
     try {
-      const auditoria = det.auditorias as unknown as { fiscalizada: string; user_id: string } | null;
-      if (!auditoria) continue;
-
-      // Busca e-mail do usuário pelo user_id
-      const { data: userData, error: userError } =
-        await supabaseAdmin.auth.admin.getUserById(auditoria.user_id);
-
-      if (userError || !userData?.user?.email) {
-        results.push({ det: det.codigo, status: "erro", erro: "usuário não encontrado" });
-        continue;
-      }
-
-      const userEmail = userData.user.email;
-      const fiscalizada = auditoria.fiscalizada;
-
       // Formata data para PT-BR (DD/MM/AAAA)
       const dataFormatada = det.data_entrega
         ? new Date(det.data_entrega + "T00:00:00").toLocaleDateString("pt-BR")
         : "—";
 
-      // Envia e-mail via Resend
       const { error: emailError } = await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || "SisOS <onboarding@resend.dev>",
-        to: userEmail,
-        subject: `Prazo do DET expirado - ${fiscalizada}`,
+        to: det.user_email,
+        subject: `Prazo do DET expirado - ${det.fiscalizada}`,
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
-            <div style="background: #1a237e; padding: 16px 24px; border-radius: 8px 8px 0 0;">
-              <h2 style="color: white; margin: 0; font-size: 18px;">📋 SisOS — Alerta de DET</h2>
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:0;">
+            <div style="background:#1a237e;padding:18px 24px;border-radius:8px 8px 0 0;">
+              <h2 style="color:white;margin:0;font-size:17px;">📋 SisOS — Alerta de DET Vencido</h2>
             </div>
-            <div style="background: #fff8e1; border: 1px solid #ffd54f; padding: 24px; border-radius: 0 0 8px 8px;">
-              <p style="margin: 0 0 16px; color: #333;">Caro AFT,</p>
-              <p style="margin: 0 0 16px; color: #333;">
+            <div style="background:#fff8e1;border:1px solid #ffd54f;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+              <p style="margin:0 0 14px;color:#333;font-size:15px;">Caro AFT,</p>
+              <p style="margin:0 0 14px;color:#333;font-size:15px;">
                 O prazo da notificação via DET <strong>${det.codigo}</strong> para a fiscalizada
-                <strong>${fiscalizada}</strong> venceu em <strong>${dataFormatada}</strong>.
+                <strong>${det.fiscalizada}</strong> venceu em <strong>${dataFormatada}</strong>.
               </p>
-              <p style="margin: 24px 0 0; color: #666; font-size: 14px;">Atenciosamente,<br><strong>SisOS</strong></p>
+              <hr style="border:none;border-top:1px solid #ffe082;margin:20px 0;"/>
+              <p style="margin:0;color:#888;font-size:13px;">
+                Atenciosamente,<br/>
+                <strong style="color:#1a237e;">SisOS</strong> — Sistema de Gestão de Auditorias
+              </p>
             </div>
           </div>
         `,
-        text: `Caro AFT,\n\nO prazo da notificação via DET ${det.codigo} para a fiscalizada ${fiscalizada} venceu em ${dataFormatada}.\n\nAtenciosamente,\n\nSisOS`,
+        text:
+          `Caro AFT,\n\n` +
+          `O prazo da notificação via DET ${det.codigo} para a fiscalizada ${det.fiscalizada} venceu em ${dataFormatada}.\n\n` +
+          `Atenciosamente,\n\nSisOS`,
       });
 
       if (emailError) {
-        results.push({ det: det.codigo, email: userEmail, status: "erro", erro: emailError.message });
+        results.push({ det: det.codigo, email: det.user_email, status: "erro", erro: emailError.message });
       } else {
-        results.push({ det: det.codigo, email: userEmail, status: "enviado" });
+        results.push({ det: det.codigo, email: det.user_email, status: "enviado" });
       }
     } catch (err) {
       results.push({ det: det.codigo, status: "erro", erro: String(err) });
@@ -99,7 +95,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    data: ontemStr,
+    data_verificada: ontemStr,
     processed: results.length,
     results,
   });
