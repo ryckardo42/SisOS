@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --turbopack)",
+      "Read(//Users/ricardodeoliveira/Documents/Claude/**)",
+      "Bash(npx create-next-app@latest sisos-temp --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --turbopack)",
+      "Bash(cp -r /Users/ricardodeoliveira/Documents/Claude/sisos-temp/. /Users/ricardodeoliveira/Documents/Claude/SisOS/)",
+      "Bash(rm -rf /Users/ricardodeoliveira/Documents/Claude/sisos-temp)",
+      "Bash(npx shadcn@latest init -d)"
+    ]
+  }
+}
