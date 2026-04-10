@@ -14,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const router = useRouter();
   const supabase = createClient();
 
@@ -41,8 +42,9 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setInfo("");
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
@@ -53,8 +55,15 @@ export default function LoginPage() {
       return;
     }
 
-    setError("");
-    alert("Conta criada! Verifique seu e-mail para confirmar.");
+    // Se o Supabase criou sessão imediatamente (confirmação desabilitada)
+    if (data.session) {
+      router.push("/");
+      router.refresh();
+      return;
+    }
+
+    // Confirmação de e-mail ainda necessária
+    setInfo("Conta criada! Verifique seu e-mail para confirmar antes de entrar.");
     setLoading(false);
   }
 
@@ -97,6 +106,9 @@ export default function LoginPage() {
 
             {error && (
               <p className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</p>
+            )}
+            {info && (
+              <p className="text-sm text-blue-700 bg-blue-50 p-2 rounded">{info}</p>
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>
