@@ -39,7 +39,11 @@
       "Bash(git commit -m 'feat: visual redesign + sidebar links section:*)",
       "Bash(git commit -m 'feat: vencimento MM/AA, card amarelo no mês, DET mostra data_entrega:*)",
       "Bash(git commit -m 'feat: cron job de alerta de DET vencido por e-mail:*)",
-      "Bash(git commit -m 'fix: cron sem service_role key — usa RPC com SECURITY DEFINER:*)"
+      "Bash(git commit -m 'fix: cron sem service_role key — usa RPC com SECURITY DEFINER:*)",
+      "Bash(printf 'sisos-cron-2026-aft')",
+      "Bash(curl -s -X GET https://sisos.vercel.app/api/cron/check-dets -H 'Authorization: Bearer sisos-cron-2026-aft')",
+      "Bash(python3 -m json.tool)",
+      "Bash(git commit -m 'fix: exclude /api/ routes from auth middleware:*)"
     ]
   }
 }
