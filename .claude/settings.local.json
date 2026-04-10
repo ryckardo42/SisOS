@@ -36,7 +36,8 @@
       "Bash(vercel --prod)",
       "Bash(git commit -m 'fix: handle signup session and email confirmation state:*)",
       "Bash(git commit -m 'fix: remove default page.tsx conflicting with \\(app\\)/page.tsx:*)",
-      "Bash(git commit -m 'feat: visual redesign + sidebar links section:*)"
+      "Bash(git commit -m 'feat: visual redesign + sidebar links section:*)",
+      "Bash(git commit -m 'feat: vencimento MM/AA, card amarelo no mês, DET mostra data_entrega:*)"
     ]
   }
 }

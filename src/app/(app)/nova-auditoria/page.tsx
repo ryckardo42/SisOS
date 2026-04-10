@@ -19,6 +19,7 @@ export default function NovaAuditoriaPage() {
     fiscalizada: "",
     municipio: "",
     data_inicio: "",
+    data_vencimento: "",   // MM/AA
     ri: "",
     os: "",
     cnpj: "",
@@ -26,6 +27,22 @@ export default function NovaAuditoriaPage() {
     acidente_trabalho: false,
     embargo_interdicao: "",
   });
+
+  // Converte MM/AA → YYYY-MM-01 para salvar no banco
+  function mmaaToIso(mmaa: string): string | null {
+    const clean = mmaa.replace(/\D/g, "");
+    if (clean.length !== 4) return null;
+    const mm = clean.slice(0, 2);
+    const yy = clean.slice(2, 4);
+    return `20${yy}-${mm}-01`;
+  }
+
+  // Auto-formata digitação: insere "/" após MM
+  function handleVencimento(val: string) {
+    const digits = val.replace(/\D/g, "").slice(0, 4);
+    const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+    update("data_vencimento", formatted);
+  }
   const router = useRouter();
   const supabase = createClient();
 
@@ -41,14 +58,6 @@ export default function NovaAuditoriaPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Calculate data_vencimento (6 months from data_inicio)
-    let data_vencimento = null;
-    if (form.data_inicio) {
-      const d = new Date(form.data_inicio);
-      d.setMonth(d.getMonth() + 6);
-      data_vencimento = d.toISOString().split("T")[0];
-    }
-
     const { data, error } = await supabase
       .from("auditorias")
       .insert({
@@ -56,7 +65,7 @@ export default function NovaAuditoriaPage() {
         fiscalizada: form.fiscalizada.trim(),
         municipio: form.municipio.trim() || null,
         data_inicio: form.data_inicio || null,
-        data_vencimento,
+        data_vencimento: mmaaToIso(form.data_vencimento),
         ri: form.ri.trim() || null,
         os: form.os.trim() || null,
         cnpj: form.cnpj.trim() || null,
@@ -134,6 +143,18 @@ export default function NovaAuditoriaPage() {
                   type="date"
                   value={form.data_inicio}
                   onChange={(e) => update("data_inicio", e.target.value)}
+                />
+              </div>
+
+              {/* Vencimento MM/AA */}
+              <div className="space-y-2">
+                <Label htmlFor="data_vencimento">Vencimento (MM/AA)</Label>
+                <Input
+                  id="data_vencimento"
+                  placeholder="Ex: 04/26"
+                  value={form.data_vencimento}
+                  onChange={(e) => handleVencimento(e.target.value)}
+                  maxLength={5}
                 />
               </div>
 

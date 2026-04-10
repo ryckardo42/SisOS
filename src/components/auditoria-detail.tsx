@@ -29,6 +29,22 @@ function formatDateBR(dateStr: string | null) {
   return d.toLocaleDateString("pt-BR");
 }
 
+// Converte YYYY-MM-DD → MM/AA
+function toMmaa(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + "T00:00:00");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${mm}/${yy}`;
+}
+
+// Converte MM/AA → YYYY-MM-01
+function mmaaToIso(mmaa: string): string | null {
+  const clean = mmaa.replace(/\D/g, "");
+  if (clean.length !== 4) return null;
+  return `20${clean.slice(2, 4)}-${clean.slice(0, 2)}-01`;
+}
+
 export function AuditoriaDetail({ auditoria: initial }: Props) {
   const [auditoria, setAuditoria] = useState(initial);
   const [editingBasic, setEditingBasic] = useState(false);
@@ -171,13 +187,19 @@ function DadosBasicosCard({
     fiscalizada: auditoria.fiscalizada,
     municipio: auditoria.municipio || "",
     data_inicio: auditoria.data_inicio || "",
-    data_vencimento: auditoria.data_vencimento || "",
+    data_vencimento: toMmaa(auditoria.data_vencimento), // MM/AA
     ri: auditoria.ri || "",
     os: auditoria.os || "",
     cnpj: auditoria.cnpj || "",
     me_epp: auditoria.me_epp,
     acidente_trabalho: auditoria.acidente_trabalho,
   });
+
+  function handleVencimento(val: string) {
+    const digits = val.replace(/\D/g, "").slice(0, 4);
+    const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+    setForm({ ...form, data_vencimento: formatted });
+  }
 
   async function save() {
     await supabase
@@ -186,7 +208,7 @@ function DadosBasicosCard({
         fiscalizada: form.fiscalizada,
         municipio: form.municipio || null,
         data_inicio: form.data_inicio || null,
-        data_vencimento: form.data_vencimento || null,
+        data_vencimento: mmaaToIso(form.data_vencimento),
         ri: form.ri || null,
         os: form.os || null,
         cnpj: form.cnpj || null,
@@ -222,8 +244,8 @@ function DadosBasicosCard({
               <Input type="date" value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} />
             </div>
             <div>
-              <Label>Vence em</Label>
-              <Input type="date" value={form.data_vencimento} onChange={(e) => setForm({ ...form, data_vencimento: e.target.value })} />
+              <Label>Vencimento (MM/AA)</Label>
+              <Input placeholder="Ex: 04/26" value={form.data_vencimento} onChange={(e) => handleVencimento(e.target.value)} maxLength={5} />
             </div>
             <div>
               <Label>RI</Label>
@@ -274,8 +296,8 @@ function DadosBasicosCard({
             <p className="font-medium">{formatDateBR(auditoria.data_inicio)}</p>
           </div>
           <div>
-            <p className="text-muted-foreground">Vence em</p>
-            <p className="font-medium">{formatDateBR(auditoria.data_vencimento)}</p>
+            <p className="text-muted-foreground">Vencimento</p>
+            <p className="font-medium">{toMmaa(auditoria.data_vencimento) || "—"}</p>
           </div>
           <div>
             <p className="text-muted-foreground">RI</p>

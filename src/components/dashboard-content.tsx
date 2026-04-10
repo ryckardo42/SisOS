@@ -15,34 +15,50 @@ interface DashboardContentProps {
   finalizadasCount: number;
 }
 
+// Converte YYYY-MM-DD → MM/AA
+function toMmaa(dateStr: string | null): string {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr + "T00:00:00");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${mm}/${yy}`;
+}
+
 function formatDateBR(dateStr: string | null) {
   if (!dateStr) return null;
   const d = new Date(dateStr + "T00:00:00");
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-function isVencida(dateStr: string | null) {
+// Verifica se vencimento é neste mês/ano
+function isVencendoEsteMes(dateStr: string | null) {
   if (!dateStr) return false;
-  return new Date(dateStr + "T00:00:00") < new Date();
+  const d = new Date(dateStr + "T00:00:00");
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
 }
 
-function isVenceSemana(dateStr: string | null) {
+function isVencida(dateStr: string | null) {
   if (!dateStr) return false;
-  const diff = new Date(dateStr + "T00:00:00").getTime() - Date.now();
-  return diff > 0 && diff < 7 * 24 * 60 * 60 * 1000;
+  const d = new Date(dateStr + "T00:00:00");
+  const now = new Date();
+  // Vencida = mês anterior ao atual ou antes
+  return d.getFullYear() < now.getFullYear() ||
+    (d.getFullYear() === now.getFullYear() && d.getMonth() < now.getMonth());
 }
 
 function getStatusLabel(a: Auditoria) {
   if (isVencida(a.data_vencimento)) return { label: "Vencida", color: "bg-red-100 text-red-700" };
-  if (isVenceSemana(a.data_vencimento)) return { label: "Vence em breve", color: "bg-yellow-100 text-yellow-700" };
+  if (isVencendoEsteMes(a.data_vencimento)) return { label: "⚠️ Vence este mês", color: "bg-yellow-100 text-yellow-800" };
   return { label: "Em Andamento", color: "bg-teal-100 text-teal-700" };
 }
 
+// DET: mostra data_entrega (não data_notificacao)
 function getDETDate(a: Auditoria) {
   const dets = a.dets || [];
   if (dets.length === 0) return null;
   const last = [...dets].sort((x, y) => (x.created_at > y.created_at ? -1 : 1))[0];
-  return formatDateBR(last.data_notificacao);
+  return formatDateBR(last.data_entrega);
 }
 
 function getLastUpdate(a: Auditoria) {
@@ -185,9 +201,15 @@ export function DashboardContent({ userName, auditorias, finalizadasCount }: Das
               const lastUpdate = getLastUpdate(a);
               const pendencia = getLastPendencia(a);
 
+              const atencao = isVencendoEsteMes(a.data_vencimento);
+
               return (
                 <Link key={a.id} href={`/auditoria/${a.id}`}>
-                  <Card className="border-0 shadow-sm hover:shadow-md transition-all cursor-pointer h-full group">
+                  <Card className={`shadow-sm hover:shadow-md transition-all cursor-pointer h-full group ${
+                    atencao
+                      ? "border-2 border-yellow-400 bg-yellow-50"
+                      : "border-0"
+                  }`}>
                     <CardContent className="pt-5 pb-4 flex flex-col h-full">
                       {/* Top row */}
                       <div className="flex items-start justify-between mb-3">
@@ -264,10 +286,10 @@ export function DashboardContent({ userName, auditorias, finalizadasCount }: Das
                       </div>
 
                       {/* Footer */}
-                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
+                      <div className={`flex items-center justify-between mt-3 pt-3 border-t ${atencao ? "border-yellow-200" : "border-gray-50"}`}>
                         <div className="text-[11px] text-gray-400">
                           {a.data_vencimento && (
-                            <>Vence: <span className="font-medium text-gray-600">{formatDateBR(a.data_vencimento)}</span></>
+                            <>Vence: <span className={`font-bold ${atencao ? "text-yellow-700" : "text-gray-600"}`}>{toMmaa(a.data_vencimento)}</span></>
                           )}
                         </div>
                         <span className="text-[11px] text-indigo-500 font-semibold flex items-center gap-1 group-hover:gap-2 transition-all">
