@@ -35,7 +35,8 @@
       "Bash(vercel env:*)",
       "Bash(vercel --prod)",
       "Bash(git commit -m 'fix: handle signup session and email confirmation state:*)",
-      "Bash(git commit -m 'fix: remove default page.tsx conflicting with \\(app\\)/page.tsx:*)"
+      "Bash(git commit -m 'fix: remove default page.tsx conflicting with \\(app\\)/page.tsx:*)",
+      "Bash(git commit -m 'feat: visual redesign + sidebar links section:*)"
     ]
   }
 }
