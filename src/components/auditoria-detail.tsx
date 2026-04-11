@@ -328,10 +328,19 @@ function DadosBasicosCard({
 // ========== DETs ==========
 function DETsCard({ auditoria, onRefresh }: { auditoria: Auditoria; onRefresh: () => void }) {
   const supabase = createClient();
+
+  // Estado do formulário de nova DET
   const [codigo, setCodigo] = useState("");
   const [dataNotificacao, setDataNotificacao] = useState("");
   const [dataEntrega, setDataEntrega] = useState("");
+
+  // Estado de edição inline: qual det está sendo editada
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ codigo: "", data_notificacao: "", data_entrega: "" });
+
   const dets = auditoria.dets || [];
+  const pendentes = dets.filter((d) => !d.conferido);
+  const conferidos = dets.filter((d) => d.conferido);
 
   async function addDET() {
     if (!codigo.trim()) return;
@@ -344,6 +353,30 @@ function DETsCard({ auditoria, onRefresh }: { auditoria: Auditoria; onRefresh: (
     setCodigo("");
     setDataNotificacao("");
     setDataEntrega("");
+    onRefresh();
+  }
+
+  function startEdit(det: DET) {
+    setEditingId(det.id);
+    setEditForm({
+      codigo: det.codigo,
+      data_notificacao: det.data_notificacao || "",
+      data_entrega: det.data_entrega || "",
+    });
+  }
+
+  async function saveEdit(id: string) {
+    await supabase.from("dets").update({
+      codigo: editForm.codigo.trim(),
+      data_notificacao: editForm.data_notificacao || null,
+      data_entrega: editForm.data_entrega || null,
+    }).eq("id", id);
+    setEditingId(null);
+    onRefresh();
+  }
+
+  async function toggleConferido(det: DET) {
+    await supabase.from("dets").update({ conferido: !det.conferido }).eq("id", det.id);
     onRefresh();
   }
 
@@ -361,7 +394,7 @@ function DETsCard({ auditoria, onRefresh }: { auditoria: Auditoria; onRefresh: (
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Add form */}
+        {/* Formulário de nova DET */}
         <div className="space-y-3 p-3 bg-gray-50 rounded-lg">
           <div>
             <Label>Código da DET</Label>
@@ -373,35 +406,117 @@ function DETsCard({ auditoria, onRefresh }: { auditoria: Auditoria; onRefresh: (
               <Input type="date" value={dataNotificacao} onChange={(e) => setDataNotificacao(e.target.value)} />
             </div>
             <div>
-              <Label>Data da Entrega</Label>
+              <Label>Vencimento</Label>
               <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} />
             </div>
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end">
             <Button size="sm" onClick={addDET} disabled={!codigo.trim()}>
               Adicionar DET
             </Button>
           </div>
         </div>
 
-        {/* List */}
-        {dets.map((det) => (
-          <div key={det.id} className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
-            <div>
-              <Badge className="bg-green-600">{det.codigo}</Badge>
-              <div className="flex gap-4 text-xs text-muted-foreground mt-1">
-                {det.data_notificacao && <span>Notificação: {formatDateBR(det.data_notificacao)}</span>}
-                {det.data_entrega && <span>Entrega: {formatDateBR(det.data_entrega)}</span>}
+        {/* Pendentes */}
+        <div>
+          <p className="text-sm font-medium flex items-center gap-1 mb-2">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            Pendentes ({pendentes.length})
+          </p>
+          {pendentes.length === 0 && (
+            <p className="text-xs text-muted-foreground">Nenhuma DET pendente</p>
+          )}
+          {pendentes.map((det) =>
+            editingId === det.id ? (
+              // Linha de edição inline
+              <div key={det.id} className="p-3 bg-blue-50 border border-blue-200 rounded-lg mb-2 space-y-2">
+                <div>
+                  <Label className="text-xs">Código</Label>
+                  <Input
+                    value={editForm.codigo}
+                    onChange={(e) => setEditForm({ ...editForm, codigo: e.target.value })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label className="text-xs">Data da Notificação</Label>
+                    <Input
+                      type="date"
+                      value={editForm.data_notificacao}
+                      onChange={(e) => setEditForm({ ...editForm, data_notificacao: e.target.value })}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Vencimento</Label>
+                    <Input
+                      type="date"
+                      value={editForm.data_entrega}
+                      onChange={(e) => setEditForm({ ...editForm, data_entrega: e.target.value })}
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button size="sm" onClick={() => saveEdit(det.id)}>Salvar</Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancelar</Button>
+                </div>
               </div>
+            ) : (
+              <div key={det.id} className="flex items-center justify-between p-2 bg-yellow-50 rounded-lg mb-1">
+                <div className="flex items-center gap-2">
+                  <Checkbox checked={false} onCheckedChange={() => toggleConferido(det)} />
+                  <div>
+                    <Badge className="bg-green-600 text-xs">{det.codigo}</Badge>
+                    <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
+                      {det.data_notificacao && <span>Notif.: {formatDateBR(det.data_notificacao)}</span>}
+                      {det.data_entrega && <span>Venc.: {formatDateBR(det.data_entrega)}</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={() => startEdit(det)}>
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => deleteDET(det.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+
+        <Separator />
+
+        {/* Conferidos */}
+        <div>
+          <p className="text-sm font-medium flex items-center gap-1 mb-2">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            Conferidos ({conferidos.length})
+          </p>
+          {conferidos.length === 0 && (
+            <p className="text-xs text-muted-foreground">Nenhuma DET conferida</p>
+          )}
+          {conferidos.map((det) => (
+            <div key={det.id} className="flex items-center justify-between p-2 bg-green-50 rounded-lg mb-1">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={true} onCheckedChange={() => toggleConferido(det)} />
+                <div>
+                  <Badge variant="outline" className="text-xs line-through text-muted-foreground">{det.codigo}</Badge>
+                  <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
+                    {det.data_notificacao && <span>Notif.: {formatDateBR(det.data_notificacao)}</span>}
+                    {det.data_entrega && <span>Venc.: {formatDateBR(det.data_entrega)}</span>}
+                  </div>
+                </div>
+              </div>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-400" onClick={() => deleteDET(det.id)}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
             </div>
-            <Button variant="ghost" size="icon" className="text-red-500" onClick={() => deleteDET(det.id)}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ))}
-        {dets.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-2">Nenhuma DET registrada</p>
-        )}
+          ))}
+        </div>
       </CardContent>
     </Card>
   );

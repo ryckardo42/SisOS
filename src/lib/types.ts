@@ -27,6 +27,7 @@ export interface DET {
   codigo: string;
   data_notificacao: string | null;
   data_entrega: string | null;
+  conferido: boolean;
   created_at: string;
 }
 
