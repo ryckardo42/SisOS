@@ -11,6 +11,7 @@ export interface Auditoria {
   me_epp: boolean;
   acidente_trabalho: boolean;
   embargo_interdicao: string | null;
+  historico: string | null;
   status: "em_andamento" | "finalizada";
   created_at: string;
   updated_at: string;

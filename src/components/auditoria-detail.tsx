@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft, Pencil, Trash2, CheckCircle2, Plus, ArrowRight,
-  ClipboardCheck, Shield, AlertTriangle, Activity, ListChecks, FileText
+  ClipboardCheck, Shield, AlertTriangle, Activity, ListChecks, FileText, BookOpen
 } from "lucide-react";
 import Link from "next/link";
 import type { Auditoria, DET, Auto, Atualizacao, Pendencia } from "@/lib/types";
@@ -26,7 +26,10 @@ interface Props {
 function formatDateBR(dateStr: string | null) {
   if (!dateStr) return "—";
   const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("pt-BR");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
 }
 
 // Converte YYYY-MM-DD → MM/AA
@@ -128,29 +131,22 @@ export function AuditoriaDetail({ auditoria: initial }: Props) {
 
       {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Dados Básicos */}
+        {/* Linha 1: Dados Básicos | DETs */}
         <DadosBasicosCard
           auditoria={auditoria}
           editing={editingBasic}
           setEditing={setEditingBasic}
           onSave={refresh}
         />
-
-        {/* DETs */}
         <DETsCard auditoria={auditoria} onRefresh={refresh} />
 
-        {/* Embargo/Interdição */}
+        {/* Linha 2: Embargo/Interdição | Autos de Infração */}
         <EmbargoCard
           auditoria={auditoria}
           editing={editingEmbargo}
           setEditing={setEditingEmbargo}
           onSave={refresh}
         />
-
-        {/* Atualizações */}
-        <AtualizacoesCard auditoria={auditoria} onRefresh={refresh} />
-
-        {/* Autos de Infração */}
         <AutosCard
           pendentes={pendentes}
           lavrados={lavrados}
@@ -158,13 +154,19 @@ export function AuditoriaDetail({ auditoria: initial }: Props) {
           onRefresh={refresh}
         />
 
-        {/* Pendências */}
+        {/* Linha 3: Atualizações | Pendências */}
+        <AtualizacoesCard auditoria={auditoria} onRefresh={refresh} />
         <PendenciasCard
           pendentes={pendenciasPendentes}
           realizadas={pendenciasRealizadas}
           auditoriaId={auditoria.id}
           onRefresh={refresh}
         />
+
+        {/* Linha 4: Histórico (largura total) */}
+        <div className="lg:col-span-2">
+          <HistoricoCard auditoria={auditoria} onSave={refresh} />
+        </div>
       </div>
     </div>
   );
@@ -793,7 +795,7 @@ function PendenciasCard({
   }
 
   return (
-    <Card className="lg:col-span-2">
+    <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ListChecks className="h-5 w-5 text-blue-600" />
@@ -858,6 +860,57 @@ function PendenciasCard({
             )}
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ========== Histórico ==========
+function HistoricoCard({ auditoria, onSave }: { auditoria: Auditoria; onSave: () => void }) {
+  const supabase = createClient();
+  const [text, setText] = useState(auditoria.historico || "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    await supabase
+      .from("auditorias")
+      .update({ historico: text || null })
+      .eq("id", auditoria.id);
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+    onSave();
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2">
+          <BookOpen className="h-5 w-5 text-indigo-600" />
+          Histórico
+        </CardTitle>
+        <Button
+          size="sm"
+          onClick={save}
+          disabled={saving}
+          className={saved ? "bg-green-600 hover:bg-green-600" : ""}
+        >
+          {saving ? "Salvando..." : saved ? "✓ Salvo" : "Salvar"}
+        </Button>
+      </CardHeader>
+      <CardContent>
+        <Textarea
+          value={text}
+          onChange={(e) => { setText(e.target.value); setSaved(false); }}
+          placeholder="Registre aqui o histórico completo da auditoria — ocorrências, diligências, cronologia de atos, informações relevantes..."
+          className="min-h-[15rem] resize-y text-sm leading-relaxed font-[family-name:var(--font-dm-sans)]"
+          rows={10}
+        />
+        <p className="text-xs text-muted-foreground mt-2">
+          {text.length} caracteres · clique em <strong>Salvar</strong> para gravar as alterações
+        </p>
       </CardContent>
     </Card>
   );
