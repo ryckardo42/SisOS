@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+type DetVencido = {
+  det_id: string;
+  codigo: string;
+  data_entrega: string;
+  fiscalizada: string;
+  user_email: string;
+};
 
 export async function GET(request: Request) {
   // Vercel envia automaticamente Authorization: Bearer <CRON_SECRET>
@@ -12,21 +20,28 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Usa anon key — a função SQL tem SECURITY DEFINER para acessar auth.users
+  // Supabase com anon key — função SQL usa SECURITY DEFINER para acessar auth.users
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  // Transporter Gmail SMTP
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_APP_PASSWORD,
+    },
+  });
 
   // Data de ontem
   const ontem = new Date();
   ontem.setDate(ontem.getDate() - 1);
-  const ontemStr = ontem.toISOString().split("T")[0]; // YYYY-MM-DD
+  const ontemStr = ontem.toISOString().split("T")[0];
 
-  // Chama a função SQL que retorna DETs vencidos com e-mail do usuário
+  // Busca DETs vencidos com e-mail do usuário via RPC (SECURITY DEFINER)
   const { data: dets, error } = await supabase.rpc("get_dets_vencidos", {
     target_date: ontemStr,
   });
@@ -40,23 +55,16 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: "Nenhum DET venceu ontem.", processed: 0 });
   }
 
-  const results: { det: string; email?: string; status: string; erro?: string }[] = [];
+  const results: { det: string; email: string; status: string; erro?: string }[] = [];
 
-  for (const det of dets as {
-    det_id: string;
-    codigo: string;
-    data_entrega: string;
-    fiscalizada: string;
-    user_email: string;
-  }[]) {
+  for (const det of dets as DetVencido[]) {
     try {
-      // Formata data para PT-BR (DD/MM/AAAA)
       const dataFormatada = det.data_entrega
         ? new Date(det.data_entrega + "T00:00:00").toLocaleDateString("pt-BR")
         : "—";
 
-      const { error: emailError } = await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || "SisOS <onboarding@resend.dev>",
+      await transporter.sendMail({
+        from: `"SisOS" <${process.env.GMAIL_USER}>`,
         to: det.user_email,
         subject: `Prazo do DET expirado - ${det.fiscalizada}`,
         html: `
@@ -80,17 +88,14 @@ export async function GET(request: Request) {
         `,
         text:
           `Caro AFT,\n\n` +
-          `O prazo da notificação via DET ${det.codigo} para a fiscalizada ${det.fiscalizada} venceu em ${dataFormatada}.\n\n` +
+          `O prazo da notificação via DET ${det.codigo} para a fiscalizada ` +
+          `${det.fiscalizada} venceu em ${dataFormatada}.\n\n` +
           `Atenciosamente,\n\nSisOS`,
       });
 
-      if (emailError) {
-        results.push({ det: det.codigo, email: det.user_email, status: "erro", erro: emailError.message });
-      } else {
-        results.push({ det: det.codigo, email: det.user_email, status: "enviado" });
-      }
+      results.push({ det: det.codigo, email: det.user_email, status: "enviado" });
     } catch (err) {
-      results.push({ det: det.codigo, status: "erro", erro: String(err) });
+      results.push({ det: det.codigo, email: det.user_email, status: "erro", erro: String(err) });
     }
   }
 

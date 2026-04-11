@@ -43,7 +43,9 @@
       "Bash(printf 'sisos-cron-2026-aft')",
       "Bash(curl -s -X GET https://sisos.vercel.app/api/cron/check-dets -H 'Authorization: Bearer sisos-cron-2026-aft')",
       "Bash(python3 -m json.tool)",
-      "Bash(git commit -m 'fix: exclude /api/ routes from auth middleware:*)"
+      "Bash(git commit -m 'fix: exclude /api/ routes from auth middleware:*)",
+      "Bash(printf 'odracir.info@gmail.com')",
+      "Bash(printf 'kveagsebpwxnsfun')"
     ]
   }
 }
