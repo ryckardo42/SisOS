@@ -28,20 +28,34 @@ export default function NovaAuditoriaPage() {
     embargo_interdicao: "",
   });
 
-  // Converte MM/AA → YYYY-MM-01 para salvar no banco
+  // MM/AA → YYYY-MM-01
   function mmaaToIso(mmaa: string): string | null {
     const clean = mmaa.replace(/\D/g, "");
     if (clean.length !== 4) return null;
-    const mm = clean.slice(0, 2);
-    const yy = clean.slice(2, 4);
-    return `20${yy}-${mm}-01`;
+    return `20${clean.slice(2, 4)}-${clean.slice(0, 2)}-01`;
   }
 
-  // Auto-formata digitação: insere "/" após MM
+  // dd/mm/aa → YYYY-MM-DD
+  function ddmmyyToIso(val: string): string | null {
+    const digits = val.replace(/\D/g, "");
+    if (digits.length !== 6) return null;
+    return `20${digits.slice(4, 6)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
+  }
+
+  // Auto-formata vencimento MM/AA
   function handleVencimento(val: string) {
     const digits = val.replace(/\D/g, "").slice(0, 4);
     const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
     update("data_vencimento", formatted);
+  }
+
+  // Auto-formata data dd/mm/aa
+  function handleDataInicio(val: string) {
+    const digits = val.replace(/\D/g, "").slice(0, 6);
+    let formatted = digits;
+    if (digits.length > 2) formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    if (digits.length > 4) formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    update("data_inicio", formatted);
   }
   const router = useRouter();
   const supabase = createClient();
@@ -64,7 +78,7 @@ export default function NovaAuditoriaPage() {
         user_id: user.id,
         fiscalizada: form.fiscalizada.trim(),
         municipio: form.municipio.trim() || null,
-        data_inicio: form.data_inicio || null,
+        data_inicio: ddmmyyToIso(form.data_inicio),
         data_vencimento: mmaaToIso(form.data_vencimento),
         ri: form.ri.trim() || null,
         os: form.os.trim() || null,
@@ -140,9 +154,10 @@ export default function NovaAuditoriaPage() {
                 <Label htmlFor="data_inicio">Data de Início</Label>
                 <Input
                   id="data_inicio"
-                  type="date"
+                  placeholder="dd/mm/aa"
                   value={form.data_inicio}
-                  onChange={(e) => update("data_inicio", e.target.value)}
+                  onChange={(e) => handleDataInicio(e.target.value)}
+                  maxLength={8}
                 />
               </div>
 

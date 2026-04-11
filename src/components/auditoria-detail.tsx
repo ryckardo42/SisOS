@@ -48,6 +48,34 @@ function mmaaToIso(mmaa: string): string | null {
   return `20${clean.slice(2, 4)}-${clean.slice(0, 2)}-01`;
 }
 
+// Converte YYYY-MM-DD → dd/mm/aa (para preencher formulários de edição)
+function toDdmmyy(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + "T00:00:00");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
+
+// Converte dd/mm/aa → YYYY-MM-DD (para salvar no banco)
+function ddmmyyToIso(val: string): string | null {
+  const digits = val.replace(/\D/g, "");
+  if (digits.length !== 6) return null;
+  const dd = digits.slice(0, 2);
+  const mm = digits.slice(2, 4);
+  const yy = digits.slice(4, 6);
+  return `20${yy}-${mm}-${dd}`;
+}
+
+// Auto-formata digitação: insere "/" após dd e mm
+function applyDdmmyy(val: string): string {
+  const digits = val.replace(/\D/g, "").slice(0, 6);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 export function AuditoriaDetail({ auditoria: initial }: Props) {
   const [auditoria, setAuditoria] = useState(initial);
   const [editingBasic, setEditingBasic] = useState(false);
@@ -188,7 +216,7 @@ function DadosBasicosCard({
   const [form, setForm] = useState({
     fiscalizada: auditoria.fiscalizada,
     municipio: auditoria.municipio || "",
-    data_inicio: auditoria.data_inicio || "",
+    data_inicio: toDdmmyy(auditoria.data_inicio), // dd/mm/aa
     data_vencimento: toMmaa(auditoria.data_vencimento), // MM/AA
     ri: auditoria.ri || "",
     os: auditoria.os || "",
@@ -209,7 +237,7 @@ function DadosBasicosCard({
       .update({
         fiscalizada: form.fiscalizada,
         municipio: form.municipio || null,
-        data_inicio: form.data_inicio || null,
+        data_inicio: ddmmyyToIso(form.data_inicio),
         data_vencimento: mmaaToIso(form.data_vencimento),
         ri: form.ri || null,
         os: form.os || null,
@@ -243,7 +271,12 @@ function DadosBasicosCard({
             </div>
             <div>
               <Label>Data de Início</Label>
-              <Input type="date" value={form.data_inicio} onChange={(e) => setForm({ ...form, data_inicio: e.target.value })} />
+              <Input
+                placeholder="dd/mm/aa"
+                value={form.data_inicio}
+                onChange={(e) => setForm({ ...form, data_inicio: applyDdmmyy(e.target.value) })}
+                maxLength={8}
+              />
             </div>
             <div>
               <Label>Vencimento (MM/AA)</Label>
@@ -349,8 +382,8 @@ function DETsCard({ auditoria, onRefresh }: { auditoria: Auditoria; onRefresh: (
     await supabase.from("dets").insert({
       auditoria_id: auditoria.id,
       codigo: codigo.trim(),
-      data_notificacao: dataNotificacao || null,
-      data_entrega: dataEntrega || null,
+      data_notificacao: ddmmyyToIso(dataNotificacao),
+      data_entrega: ddmmyyToIso(dataEntrega),
     });
     setCodigo("");
     setDataNotificacao("");
@@ -362,16 +395,16 @@ function DETsCard({ auditoria, onRefresh }: { auditoria: Auditoria; onRefresh: (
     setEditingId(det.id);
     setEditForm({
       codigo: det.codigo,
-      data_notificacao: det.data_notificacao || "",
-      data_entrega: det.data_entrega || "",
+      data_notificacao: toDdmmyy(det.data_notificacao),
+      data_entrega: toDdmmyy(det.data_entrega),
     });
   }
 
   async function saveEdit(id: string) {
     await supabase.from("dets").update({
       codigo: editForm.codigo.trim(),
-      data_notificacao: editForm.data_notificacao || null,
-      data_entrega: editForm.data_entrega || null,
+      data_notificacao: ddmmyyToIso(editForm.data_notificacao),
+      data_entrega: ddmmyyToIso(editForm.data_entrega),
     }).eq("id", id);
     setEditingId(null);
     onRefresh();
@@ -405,11 +438,21 @@ function DETsCard({ auditoria, onRefresh }: { auditoria: Auditoria; onRefresh: (
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label>Data da Notificação</Label>
-              <Input type="date" value={dataNotificacao} onChange={(e) => setDataNotificacao(e.target.value)} />
+              <Input
+                placeholder="dd/mm/aa"
+                value={dataNotificacao}
+                onChange={(e) => setDataNotificacao(applyDdmmyy(e.target.value))}
+                maxLength={8}
+              />
             </div>
             <div>
-              <Label>Vencimento</Label>
-              <Input type="date" value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} />
+              <Label>Entrega de docs</Label>
+              <Input
+                placeholder="dd/mm/aa"
+                value={dataEntrega}
+                onChange={(e) => setDataEntrega(applyDdmmyy(e.target.value))}
+                maxLength={8}
+              />
             </div>
           </div>
           <div className="flex justify-end">
@@ -444,19 +487,21 @@ function DETsCard({ auditoria, onRefresh }: { auditoria: Auditoria; onRefresh: (
                   <div>
                     <Label className="text-xs">Data da Notificação</Label>
                     <Input
-                      type="date"
+                      placeholder="dd/mm/aa"
                       value={editForm.data_notificacao}
-                      onChange={(e) => setEditForm({ ...editForm, data_notificacao: e.target.value })}
+                      onChange={(e) => setEditForm({ ...editForm, data_notificacao: applyDdmmyy(e.target.value) })}
                       className="h-8 text-sm"
+                      maxLength={8}
                     />
                   </div>
                   <div>
-                    <Label className="text-xs">Vencimento</Label>
+                    <Label className="text-xs">Entrega de docs</Label>
                     <Input
-                      type="date"
+                      placeholder="dd/mm/aa"
                       value={editForm.data_entrega}
-                      onChange={(e) => setEditForm({ ...editForm, data_entrega: e.target.value })}
+                      onChange={(e) => setEditForm({ ...editForm, data_entrega: applyDdmmyy(e.target.value) })}
                       className="h-8 text-sm"
+                      maxLength={8}
                     />
                   </div>
                 </div>
@@ -473,7 +518,7 @@ function DETsCard({ auditoria, onRefresh }: { auditoria: Auditoria; onRefresh: (
                     <Badge className="bg-green-600 text-xs">{det.codigo}</Badge>
                     <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
                       {det.data_notificacao && <span>Notif.: {formatDateBR(det.data_notificacao)}</span>}
-                      {det.data_entrega && <span>Venc.: {formatDateBR(det.data_entrega)}</span>}
+                      {det.data_entrega && <span>Entrega: {formatDateBR(det.data_entrega)}</span>}
                     </div>
                   </div>
                 </div>
@@ -509,7 +554,7 @@ function DETsCard({ auditoria, onRefresh }: { auditoria: Auditoria; onRefresh: (
                   <Badge variant="outline" className="text-xs line-through text-muted-foreground">{det.codigo}</Badge>
                   <div className="flex gap-3 text-xs text-muted-foreground mt-0.5">
                     {det.data_notificacao && <span>Notif.: {formatDateBR(det.data_notificacao)}</span>}
-                    {det.data_entrega && <span>Venc.: {formatDateBR(det.data_entrega)}</span>}
+                    {det.data_entrega && <span>Entrega: {formatDateBR(det.data_entrega)}</span>}
                   </div>
                 </div>
               </div>
