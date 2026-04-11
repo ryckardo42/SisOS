@@ -46,9 +46,20 @@ function isVencida(dateStr: string | null) {
   );
 }
 
+// DET vencida = data_entrega < hoje E conferido = false
+function hasDETVencida(a: Auditoria): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return (a.dets || []).some((d) => {
+    if (!d.data_entrega || d.conferido) return false;
+    const entrega = new Date(d.data_entrega + "T00:00:00");
+    return entrega < today;
+  });
+}
+
 function getStatusLabel(a: Auditoria) {
   if (isVencida(a.data_vencimento)) return { label: "Vencida", color: "bg-red-100 text-red-600" };
-  if (isVencendoEsteMes(a.data_vencimento)) return { label: "⚠ Vence este mês", color: "bg-amber-100 text-amber-700" };
+  if (isVencendoEsteMes(a.data_vencimento)) return { label: "⚠ Vence este mês", color: "bg-red-100 text-red-700" };
   return { label: "Em Andamento", color: "bg-teal-100 text-teal-700" };
 }
 
@@ -220,42 +231,64 @@ export function DashboardContent({ userName, auditorias, finalizadasCount }: Das
               const detDate = getDETDate(a);
               const lastUpdate = getLastUpdate(a);
               const pendencia = getLastPendencia(a);
-              const atencao = isVencendoEsteMes(a.data_vencimento);
+              const vencendoEsteMes = isVencendoEsteMes(a.data_vencimento);
+              const detVencida = hasDETVencida(a);
+
+              // Prioridade: vermelho (vencendo mês) > amarelo (DET vencida) > normal
+              const cardBg = vencendoEsteMes
+                ? "bg-red-50 ring-2 ring-red-300"
+                : detVencida
+                ? "bg-yellow-50 ring-2 ring-yellow-300"
+                : "";
+
+              const bannerGradient = vencendoEsteMes
+                ? "linear-gradient(90deg, #ef4444, #f87171, #ef4444)"
+                : detVencida
+                ? "linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b)"
+                : "linear-gradient(90deg, #818cf8, #a78bfa, #6366f1)";
+
+              const avatarStyle = vencendoEsteMes
+                ? { background: "linear-gradient(135deg, #fee2e2, #fecaca)", color: "#991b1b" }
+                : detVencida
+                ? { background: "linear-gradient(135deg, #fef9c3, #fef08a)", color: "#92400e" }
+                : { background: "linear-gradient(135deg, #e0e7ff, #c7d2fe)", color: "#4338ca" };
+
+              const footerBorder = vencendoEsteMes
+                ? "border-red-100"
+                : detVencida
+                ? "border-yellow-100"
+                : "border-gray-100";
 
               return (
                 <Link key={a.id} href={`/auditoria/${a.id}`}>
                   <Card
-                    className={`shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer h-full group rounded-2xl border-0 ${
-                      atencao ? "ring-2 ring-amber-400" : ""
-                    }`}
+                    className={`shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer h-full group rounded-2xl border-0 ${cardBg}`}
                   >
-                    {/* Mini holographic banner */}
+                    {/* Banner topo */}
                     <div
                       className="h-2 rounded-t-2xl"
-                      style={{
-                        background: atencao
-                          ? "linear-gradient(90deg, #fbbf24, #f97316, #fbbf24)"
-                          : "linear-gradient(90deg, #818cf8, #a78bfa, #6366f1)",
-                      }}
+                      style={{ background: bannerGradient }}
                     />
 
-                    <CardContent className="pt-4 pb-4 flex flex-col h-full bg-white rounded-b-2xl">
+                    <CardContent className="pt-4 pb-4 flex flex-col h-full rounded-b-2xl">
                       {/* Top row */}
                       <div className="flex items-start justify-between mb-3">
                         <div
                           className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-sm font-bold"
-                          style={{
-                            background: atencao
-                              ? "linear-gradient(135deg, #fef3c7, #fde68a)"
-                              : "linear-gradient(135deg, #e0e7ff, #c7d2fe)",
-                            color: atencao ? "#92400e" : "#4338ca",
-                          }}
+                          style={avatarStyle}
                         >
                           {a.fiscalizada.slice(0, 2).toUpperCase()}
                         </div>
-                        <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${status.color}`}>
-                          {status.label}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full ${status.color}`}>
+                            {status.label}
+                          </span>
+                          {detVencida && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-yellow-200 text-yellow-900 flex items-center gap-1">
+                              ❗DET não visto
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Title */}
@@ -285,7 +318,9 @@ export function DashboardContent({ userName, auditorias, finalizadasCount }: Das
                         {detDate && (
                           <div>
                             <span className="text-gray-400">DET:</span>{" "}
-                            <span className="font-semibold text-indigo-500">{detDate}</span>
+                            <span className={`font-semibold ${detVencida ? "text-yellow-700" : "text-indigo-500"}`}>
+                              {detDate}
+                            </span>
                           </div>
                         )}
                         <div>
@@ -307,7 +342,7 @@ export function DashboardContent({ userName, auditorias, finalizadasCount }: Das
                           <span className="text-[10px] text-gray-400 font-medium">Progresso</span>
                           <span className="text-[10px] font-bold text-gray-600">{progress}%</span>
                         </div>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-white/60 rounded-full overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all"
                             style={{
@@ -324,20 +359,12 @@ export function DashboardContent({ userName, auditorias, finalizadasCount }: Das
                       </div>
 
                       {/* Footer */}
-                      <div
-                        className={`flex items-center justify-between mt-3 pt-3 border-t ${
-                          atencao ? "border-amber-100" : "border-gray-100"
-                        }`}
-                      >
+                      <div className={`flex items-center justify-between mt-3 pt-3 border-t ${footerBorder}`}>
                         <div className="text-[11px] text-gray-400">
                           {a.data_vencimento && (
                             <>
                               Vence:{" "}
-                              <span
-                                className={`font-bold ${
-                                  atencao ? "text-amber-600" : "text-gray-700"
-                                }`}
-                              >
+                              <span className={`font-bold ${vencendoEsteMes ? "text-red-600" : "text-gray-700"}`}>
                                 {toMmaa(a.data_vencimento)}
                               </span>
                             </>
