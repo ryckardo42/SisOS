@@ -1,8 +1,12 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-dm-sans",
+});
 
 export const metadata: Metadata = {
   title: "SisOS - Gestão de Auditorias",
@@ -16,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" className="h-full antialiased">
-      <body className={`${inter.className} min-h-full flex flex-col`}>
+      <body className={`${dmSans.variable} font-[family-name:var(--font-dm-sans)] min-h-full flex flex-col`}>
         {children}
       </body>
     </html>
