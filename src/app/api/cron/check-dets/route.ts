@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,14 +27,7 @@ export async function GET(request: Request) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  // Transporter Gmail SMTP
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
-  });
+  const resend = new Resend(process.env.RESEND_API_KEY);
 
   // Data de ontem
   const ontem = new Date();
@@ -63,8 +56,8 @@ export async function GET(request: Request) {
         ? new Date(det.data_entrega + "T00:00:00").toLocaleDateString("pt-BR")
         : "—";
 
-      await transporter.sendMail({
-        from: `"SisOS" <${process.env.GMAIL_USER}>`,
+      const { error: sendError } = await resend.emails.send({
+        from: process.env.RESEND_FROM_EMAIL!,
         to: det.user_email,
         subject: `Prazo do DET expirado - ${det.fiscalizada}`,
         html: `
@@ -93,7 +86,11 @@ export async function GET(request: Request) {
           `Atenciosamente,\n\nSisOS`,
       });
 
-      results.push({ det: det.codigo, email: det.user_email, status: "enviado" });
+      if (sendError) {
+        results.push({ det: det.codigo, email: det.user_email, status: "erro", erro: sendError.message });
+      } else {
+        results.push({ det: det.codigo, email: det.user_email, status: "enviado" });
+      }
     } catch (err) {
       results.push({ det: det.codigo, email: det.user_email, status: "erro", erro: String(err) });
     }
